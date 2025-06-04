@@ -10,9 +10,38 @@
     <div class="container">
         <header>
             <h1>Genius Cooperativo</h1>
-            <p>Implementação em andamento...</p>
+            <div class="game-info">
+                <div id="status">Aguardando jogadores...</div>
+                <div id="level">Nível: <span id="level-value">0</span></div>
+                <div id="players-info">Jogadores: <span id="player-count">0</span>/4</div>
+            </div>
         </header>
+
+        <div class="game-container">
+            <div class="genius-board">
+                <div class="color-button green" id="green"></div>
+                <div class="color-button red" id="red"></div>
+                <div class="color-button yellow" id="yellow"></div>
+                <div class="color-button blue" id="blue"></div>
+                <div class="center-circle">
+                    <div id="turn-indicator">Sua vez!</div>
+                </div>
+            </div>
+
+            <div class="players-container">
+                <h2>Jogadores</h2>
+                <div id="players-list">
+                    <!-- Lista de jogadores será preenchida dinamicamente -->
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="ready-btn" class="btn">Estou Pronto</button>
+            <button id="restart-btn" class="btn" disabled>Reiniciar Jogo</button>
+        </div>
     </div>
+
     <script src="js/client.js"></script>
 </body>
 </html>
