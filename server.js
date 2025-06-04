@@ -20,9 +20,11 @@ let gameState = {
   isActive: false,
   sequence: [],
   currentStep: 0,
-  players: new Map(), // Mapa de WebSocket -> { id, ready }
+  players: new Map(), // Mapa de WebSocket -> { id, color, ready, turn }
   playerCount: 0,
-  waitingForPlayers: true
+  waitingForPlayers: true,
+  gameMode: 'cooperative', // 'cooperative' ou 'competitive'
+  turnIndex: 0
 };
 
 // Servir arquivos estáticos
@@ -48,12 +50,30 @@ function generateSequence(length) {
   return sequence;
 }
 
+// Atribuir cores aos jogadores
+function assignPlayerColors() {
+  const playerColors = ['#00a74a', '#9f0f17', '#cca707', '#094a8f'];
+  let colorIndex = 0;
+  
+  gameState.players.forEach((player) => {
+    player.color = playerColors[colorIndex % playerColors.length];
+    colorIndex++;
+  });
+}
+
 // Iniciar um novo jogo
 function startNewGame() {
   gameState.isActive = true;
   gameState.waitingForPlayers = false;
   gameState.sequence = generateSequence(INITIAL_SEQUENCE_LENGTH);
   gameState.currentStep = 0;
+  gameState.turnIndex = 0;
+  
+  // Atribuir cores aos jogadores
+  assignPlayerColors();
+  
+  // Definir quem começa
+  updatePlayerTurns();
   
   // Enviar estado inicial para todos
   broadcastGameState();
@@ -63,6 +83,30 @@ function startNewGame() {
     type: 'sequence',
     sequence: gameState.sequence
   });
+}
+
+// Atualizar de quem é a vez de jogar
+function updatePlayerTurns() {
+  let index = 0;
+  
+  // Resetar todos os turnos
+  gameState.players.forEach((player) => {
+    player.turn = false;
+  });
+  
+  // Definir o jogador atual
+  if (gameState.playerCount > 0) {
+    const players = Array.from(gameState.players.values());
+    const currentPlayerIndex = gameState.turnIndex % gameState.playerCount;
+    players[currentPlayerIndex].turn = true;
+  }
+}
+
+// Avançar para o próximo jogador
+function nextPlayerTurn() {
+  gameState.turnIndex++;
+  updatePlayerTurns();
+  broadcastGameState();
 }
 
 // Verificar se todos os jogadores estão prontos
@@ -86,10 +130,12 @@ function resetGame() {
   gameState.sequence = [];
   gameState.currentStep = 0;
   gameState.waitingForPlayers = true;
+  gameState.turnIndex = 0;
   
   // Resetar status dos jogadores
   gameState.players.forEach((player) => {
     player.ready = false;
+    player.turn = false;
   });
   
   broadcastGameState();
@@ -113,7 +159,9 @@ function broadcastMessage(message) {
 function broadcastGameState() {
   const players = Array.from(gameState.players.values()).map(player => ({
     id: player.id,
-    ready: player.ready
+    color: player.color,
+    ready: player.ready,
+    turn: player.turn
   }));
   
   broadcastMessage({
@@ -121,7 +169,8 @@ function broadcastGameState() {
     isActive: gameState.isActive,
     waitingForPlayers: gameState.waitingForPlayers,
     playerCount: gameState.playerCount,
-    players: players
+    players: players,
+    gameMode: gameState.gameMode
   });
 }
 
@@ -141,7 +190,9 @@ wss.on('connection', (ws) => {
   const playerId = generatePlayerId();
   gameState.players.set(ws, {
     id: playerId,
-    ready: false
+    color: null, // Será atribuído quando o jogo começar
+    ready: false,
+    turn: false
   });
   gameState.playerCount++;
   
@@ -176,7 +227,7 @@ wss.on('connection', (ws) => {
           break;
           
         case 'move':
-          if (gameState.isActive) {
+          if (gameState.isActive && player.turn) {
             const isCorrect = checkMove(data.color);
             
             // Informar todos sobre a jogada
@@ -214,6 +265,11 @@ wss.on('connection', (ws) => {
                     sequence: gameState.sequence
                   });
                 }, 2000);
+              } else {
+                // Próximo jogador no modo cooperativo
+                if (gameState.gameMode === 'cooperative') {
+                  nextPlayerTurn();
+                }
               }
             } else {
               // Jogada incorreta, fim de jogo
@@ -272,6 +328,11 @@ wss.on('connection', (ws) => {
           message: 'Jogadores insuficientes para continuar.'
         });
         resetGame();
+      }
+      // Se era a vez do jogador que saiu, passar para o próximo
+      else if (gameState.isActive) {
+        updatePlayerTurns();
+        broadcastGameState();
       }
     }
   });

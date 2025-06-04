@@ -30,10 +30,13 @@ const sounds = {
 // Estado do cliente
 let clientState = {
     playerId: null,
+    playerColor: null,
     isMyTurn: false,
+    isReady: false,
     gameActive: false,
     currentSequence: [],
-    isPlayingSequence: false
+    isPlayingSequence: false,
+    playersList: []
 };
 
 // Configuração do WebSocket
@@ -92,7 +95,7 @@ function handleSocketMessage(event) {
                 showMessage('Erro', message.message);
                 break;
             case 'playerMove':
-                // Mostrar movimento do jogador
+                // Mostrar movimento do jogador para todos
                 highlightButton(message.color);
                 break;
         }
@@ -147,8 +150,44 @@ function handleGameState(message) {
     // Atualizar lista de jogadores
     updatePlayersList(message.players);
     
+    // Verificar se é a vez do jogador atual
+    const currentPlayer = message.players.find(player => player.id === clientState.playerId);
+    if (currentPlayer) {
+        clientState.playerColor = currentPlayer.color;
+        clientState.isMyTurn = currentPlayer.turn;
+        clientState.isReady = currentPlayer.ready;
+        
+        // Atualizar botão de pronto
+        if (clientState.isReady) {
+            readyButton.textContent = 'Aguardando...';
+            readyButton.disabled = true;
+        } else {
+            readyButton.textContent = 'Estou Pronto';
+            readyButton.disabled = false;
+        }
+        
+        // Atualizar indicador de turno
+        if (clientState.isMyTurn && message.isActive) {
+            turnIndicator.textContent = 'Sua vez!';
+            turnIndicator.classList.add('active');
+        } else {
+            turnIndicator.classList.remove('active');
+            if (message.isActive) {
+                // Mostrar de quem é a vez
+                const currentTurnPlayer = message.players.find(player => player.turn);
+                if (currentTurnPlayer) {
+                    turnIndicator.textContent = currentTurnPlayer.id === clientState.playerId ? 
+                        'Sua vez!' : `Vez de ${currentTurnPlayer.id}`;
+                }
+            } else {
+                turnIndicator.textContent = '';
+            }
+        }
+    }
+    
     // Atualizar estado do jogo
     clientState.gameActive = message.isActive;
+    clientState.playersList = message.players;
     
     // Habilitar/desabilitar botões de cor
     updateColorButtonsState();
@@ -162,12 +201,32 @@ function updatePlayersList(players) {
         const playerItem = document.createElement('div');
         playerItem.className = 'player-item';
         
-        const playerName = document.createElement('span');
+        const playerColor = document.createElement('div');
+        playerColor.className = 'player-color';
+        if (player.color) {
+            playerColor.style.backgroundColor = player.color;
+        } else {
+            playerColor.style.backgroundColor = '#555';
+        }
+        
+        const playerName = document.createElement('div');
+        playerName.className = 'player-name';
         playerName.textContent = player.id === clientState.playerId ? `Você (${player.id})` : `Jogador ${player.id}`;
         
-        const playerStatus = document.createElement('span');
-        playerStatus.textContent = player.ready ? ' - Pronto' : ' - Aguardando';
+        const playerStatus = document.createElement('div');
+        playerStatus.className = 'player-status';
         
+        if (player.turn) {
+            playerStatus.textContent = 'Jogando';
+            playerStatus.classList.add('turn');
+        } else if (player.ready) {
+            playerStatus.textContent = 'Pronto';
+            playerStatus.classList.add('ready');
+        } else {
+            playerStatus.textContent = 'Aguardando';
+        }
+        
+        playerItem.appendChild(playerColor);
         playerItem.appendChild(playerName);
         playerItem.appendChild(playerStatus);
         playersListElement.appendChild(playerItem);
@@ -194,7 +253,7 @@ function handleLevelComplete(message) {
     sounds.success.play();
     
     // Mostrar mensagem de nível completo
-    showMessage('Nível Completo!', `Parabéns! Você completou o nível ${message.currentLevel}. Próximo nível: ${message.nextLevel}`);
+    showMessage('Nível Completo!', `Parabéns! Vocês completaram o nível ${message.currentLevel}. Próximo nível: ${message.nextLevel}`);
 }
 
 // Manipulador de fim de jogo
@@ -208,6 +267,7 @@ function handleGameOver(message) {
     // Resetar estado do cliente
     clientState.isMyTurn = false;
     clientState.gameActive = false;
+    clientState.isReady = false;
     
     // Atualizar botões
     updateColorButtonsState();
@@ -248,7 +308,7 @@ function highlightButton(color) {
 
 // Atualizar estado dos botões de cor
 function updateColorButtonsState() {
-    const buttonsEnabled = clientState.gameActive && !clientState.isPlayingSequence;
+    const buttonsEnabled = clientState.gameActive && clientState.isMyTurn && !clientState.isPlayingSequence;
     
     Object.values(colorButtons).forEach(button => {
         if (buttonsEnabled) {
@@ -296,7 +356,7 @@ function initEvents() {
     // Botões coloridos
     Object.entries(colorButtons).forEach(([color, button]) => {
         button.addEventListener('click', () => {
-            if (clientState.gameActive && !clientState.isPlayingSequence) {
+            if (clientState.gameActive && clientState.isMyTurn && !clientState.isPlayingSequence) {
                 sendMessage({
                     type: 'move',
                     color: color
