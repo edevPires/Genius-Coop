@@ -1,1 +1,1 @@
-{"scripts": {"start": "node server.js", "dev": "nodemon server.js"}}
+{"scripts":{"start":"node server.js","dev":"nodemon server.js"},"name":"genius-coop","version":"1.0.0","description":"Genius Coop é uma versão moderna e colaborativa do clássico jogo de memória \"Genius\", desenvolvida para navegadores. Neste jogo, dois jogadores se unem para memorizar e reproduzir sequências de cores e sons, promovendo cooperação e diversão em tempo real.","main":"server.js","author":"","license":"ISC","dependencies":{"express":"^5.1.0","ws":"^8.18.2"}}
