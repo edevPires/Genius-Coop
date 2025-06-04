@@ -15,5 +15,9 @@
     "cooperative"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.2"
+  }
 }
