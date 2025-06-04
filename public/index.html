@@ -7,6 +7,21 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <div id="connection-overlay" class="connection-overlay">
+        <h2>Conectando ao servidor...</h2>
+        <div class="spinner"></div>
+        <p>Por favor, aguarde enquanto estabelecemos a conexão.</p>
+    </div>
+    
+    <div id="game-over-overlay" class="message-box hidden">
+        <div class="message-content">
+            <h3>Fim de Jogo</h3>
+            <p id="game-over-message">Jogada incorreta!</p>
+            <p>Pontuação final: <span id="final-score">0</span></p>
+            <button id="play-again-btn" class="btn">Jogar Novamente</button>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>Genius Cooperativo</h1>
@@ -41,6 +56,14 @@
             <button id="restart-btn" class="btn" disabled>Reiniciar Jogo</button>
         </div>
     </div>
+
+    <!-- Sons do jogo -->
+    <audio id="green-sound" src="audio/green.mp3"></audio>
+    <audio id="red-sound" src="audio/red.mp3"></audio>
+    <audio id="yellow-sound" src="audio/yellow.mp3"></audio>
+    <audio id="blue-sound" src="audio/blue.mp3"></audio>
+    <audio id="error-sound" src="audio/error.mp3"></audio>
+    <audio id="success-sound" src="audio/success.mp3"></audio>
 
     <script src="js/client.js"></script>
 </body>
