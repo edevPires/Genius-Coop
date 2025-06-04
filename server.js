@@ -24,7 +24,10 @@ let gameState = {
   playerCount: 0,
   waitingForPlayers: true,
   gameMode: 'cooperative', // 'cooperative' ou 'competitive'
-  turnIndex: 0
+  turnIndex: 0,
+  scores: {},
+  levelComplete: false,
+  playersReadyForNextLevel: new Set() // Conjunto para rastrear jogadores prontos para o próximo nível
 };
 
 // Servir arquivos estáticos
@@ -68,6 +71,8 @@ function startNewGame() {
   gameState.sequence = generateSequence(INITIAL_SEQUENCE_LENGTH);
   gameState.currentStep = 0;
   gameState.turnIndex = 0;
+  gameState.levelComplete = false;
+  gameState.playersReadyForNextLevel.clear();
   
   // Atribuir cores aos jogadores
   assignPlayerColors();
@@ -131,6 +136,9 @@ function resetGame() {
   gameState.currentStep = 0;
   gameState.waitingForPlayers = true;
   gameState.turnIndex = 0;
+  gameState.scores = {};
+  gameState.levelComplete = false;
+  gameState.playersReadyForNextLevel.clear();
   
   // Resetar status dos jogadores
   gameState.players.forEach((player) => {
@@ -181,6 +189,16 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({
       type: 'error',
       message: 'Jogo cheio! Tente novamente mais tarde.'
+    }));
+    ws.close();
+    return;
+  }
+  
+  // Verificar se o jogo já está em andamento
+  if (gameState.isActive && !gameState.waitingForPlayers) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      message: 'Jogo em andamento! Aguarde o término da partida atual para entrar.'
     }));
     ws.close();
     return;
@@ -247,24 +265,19 @@ wss.on('connection', (ws) => {
                 const randomIndex = Math.floor(Math.random() * COLORS.length);
                 nextSequence.push(COLORS[randomIndex]);
                 
+                // Armazenar próxima sequência
+                gameState.nextSequence = nextSequence;
+                
+                // Marcar nível como completo
+                gameState.levelComplete = true;
+                gameState.playersReadyForNextLevel.clear();
+                
                 // Informar que o nível foi completado
                 broadcastMessage({
                   type: 'levelComplete',
                   currentLevel: gameState.sequence.length,
                   nextLevel: nextSequence.length
                 });
-                
-                // Atualizar sequência e resetar passo atual
-                gameState.sequence = nextSequence;
-                gameState.currentStep = 0;
-                
-                // Enviar nova sequência após um breve atraso
-                setTimeout(() => {
-                  broadcastMessage({
-                    type: 'sequence',
-                    sequence: gameState.sequence
-                  });
-                }, 2000);
               } else {
                 // Próximo jogador no modo cooperativo
                 if (gameState.gameMode === 'cooperative') {
@@ -281,6 +294,55 @@ wss.on('connection', (ws) => {
               
               // Resetar o jogo
               resetGame();
+            }
+          } else if (!player.turn && gameState.isActive) {
+            // Informar que não é a vez do jogador
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Não é sua vez de jogar!'
+            }));
+          }
+          break;
+          
+        case 'readyForNextLevel':
+          // Adicionar jogador à lista de prontos para o próximo nível
+          if (gameState.levelComplete) {
+            gameState.playersReadyForNextLevel.add(player.id);
+            
+            // Verificar se todos os jogadores estão prontos para o próximo nível
+            if (gameState.playersReadyForNextLevel.size === gameState.playerCount) {
+              // Todos os jogadores estão prontos, avançar para o próximo nível
+              gameState.levelComplete = false;
+              gameState.sequence = gameState.nextSequence;
+              gameState.currentStep = 0;
+              gameState.turnIndex = 0;
+              updatePlayerTurns();
+              
+              // Informar a todos que todos os jogadores estão prontos
+              broadcastMessage({
+                type: 'waitingForPlayers',
+                ready: gameState.playerCount,
+                total: gameState.playerCount,
+                allReady: true
+              });
+              
+              // Dar um tempo para que os popups sejam fechados antes de enviar a nova sequência
+              setTimeout(() => {
+                // Enviar nova sequência para todos
+                broadcastMessage({
+                  type: 'sequence',
+                  sequence: gameState.sequence
+                });
+                
+                broadcastGameState();
+              }, 1500);
+            } else {
+              // Informar quantos jogadores estão prontos
+              broadcastMessage({
+                type: 'waitingForPlayers',
+                ready: gameState.playersReadyForNextLevel.size,
+                total: gameState.playerCount
+              });
             }
           }
           break;
@@ -333,6 +395,18 @@ wss.on('connection', (ws) => {
       else if (gameState.isActive) {
         updatePlayerTurns();
         broadcastGameState();
+      }
+      
+      // Remover jogador da lista de prontos para o próximo nível
+      if (gameState.levelComplete) {
+        gameState.playersReadyForNextLevel.delete(playerId);
+        
+        // Informar quantos jogadores estão prontos
+        broadcastMessage({
+          type: 'waitingForPlayers',
+          ready: gameState.playersReadyForNextLevel.size,
+          total: gameState.playerCount
+        });
       }
     }
   });
