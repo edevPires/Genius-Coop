@@ -1,4 +1,5 @@
-// Cliente WebSocket para o jogo Genius Cooperativo
+// Adicionar sons ao jogo
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
 // Elementos da interface
 const statusElement = document.getElementById('status');
@@ -8,6 +9,24 @@ const playersListElement = document.getElementById('players-list');
 const readyButton = document.getElementById('ready-btn');
 const restartButton = document.getElementById('restart-btn');
 const turnIndicator = document.getElementById('turn-indicator');
+const messageBox = document.createElement('div');
+const messageContent = document.createElement('div');
+const messageTitle = document.createElement('h3');
+const messageText = document.createElement('p');
+const messageCloseButton = document.createElement('button');
+
+// Configurar caixa de mensagem
+messageBox.className = 'message-box hidden';
+messageContent.className = 'message-content';
+messageCloseButton.className = 'btn';
+messageCloseButton.textContent = 'Fechar';
+messageCloseButton.onclick = () => messageBox.classList.add('hidden');
+
+messageContent.appendChild(messageTitle);
+messageContent.appendChild(messageText);
+messageContent.appendChild(messageCloseButton);
+messageBox.appendChild(messageContent);
+document.body.appendChild(messageBox);
 
 // Botões coloridos
 const colorButtons = {
@@ -17,15 +36,47 @@ const colorButtons = {
     blue: document.getElementById('blue')
 };
 
-// Sons (serão implementados posteriormente)
+// Sons
 const sounds = {
-    green: { play: () => console.log('Som verde') },
-    red: { play: () => console.log('Som vermelho') },
-    yellow: { play: () => console.log('Som amarelo') },
-    blue: { play: () => console.log('Som azul') },
-    error: { play: () => console.log('Som de erro') },
-    success: { play: () => console.log('Som de sucesso') }
+    green: { play: () => playTone(415.3, 0.3) }, // G#4
+    red: { play: () => playTone(311.13, 0.3) }, // D#4
+    yellow: { play: () => playTone(252, 0.3) }, // B3
+    blue: { play: () => playTone(209, 0.3) }, // G#3
+    error: { 
+        play: () => {
+            playTone(200, 0.2);
+            setTimeout(() => playTone(150, 0.3), 200);
+        }
+    },
+    success: { 
+        play: () => {
+            playTone(400, 0.1);
+            setTimeout(() => playTone(600, 0.1), 100);
+            setTimeout(() => playTone(800, 0.2), 200);
+        }
+    }
 };
+
+// Tocar tom usando Web Audio API
+function playTone(frequency, duration) {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.start();
+    
+    // Fade out
+    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+    
+    setTimeout(() => {
+        oscillator.stop();
+    }, duration * 1000);
+}
 
 // Estado do cliente
 let clientState = {
@@ -115,6 +166,7 @@ function handleSocketClose(event) {
         setTimeout(initWebSocket, 2000 * reconnectAttempts);
     } else {
         statusElement.textContent = 'Falha na conexão';
+        showMessage('Erro de Conexão', 'Não foi possível reconectar ao servidor. Recarregue a página para tentar novamente.');
     }
 }
 
@@ -191,6 +243,9 @@ function handleGameState(message) {
     
     // Habilitar/desabilitar botões de cor
     updateColorButtonsState();
+    
+    // Habilitar/desabilitar botão de reiniciar
+    restartButton.disabled = message.isActive;
 }
 
 // Atualizar lista de jogadores
@@ -273,6 +328,7 @@ function handleGameOver(message) {
     updateColorButtonsState();
     readyButton.disabled = false;
     readyButton.textContent = 'Estou Pronto';
+    restartButton.disabled = false;
 }
 
 // Reproduzir sequência de cores
@@ -330,7 +386,9 @@ function sendMessage(message) {
 
 // Mostrar mensagem na tela
 function showMessage(title, text) {
-    alert(`${title}\n${text}`);
+    messageTitle.textContent = title;
+    messageText.textContent = text;
+    messageBox.classList.remove('hidden');
 }
 
 // Inicializar eventos da interface
@@ -351,6 +409,8 @@ function initEvents() {
         sendMessage({
             type: 'requestRestart'
         });
+        
+        showMessage('Reiniciar', 'Você solicitou reiniciar o jogo. Aguardando outros jogadores ficarem prontos...');
     });
     
     // Botões coloridos
